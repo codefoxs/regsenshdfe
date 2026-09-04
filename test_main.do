@@ -45,6 +45,25 @@ use "main.dta", clear
 
 reghdfe Markup Score $controls, a(stkcd year#dind2) vce(cluster stkcd)
 
+// reg Markup Score $controls i.stkcd i.year#i.dind2, vce(cluster stkcd)
+xtreg Markup Score $controls i.year#i.dind2, fe vce(cluster stkcd)
+xtreg Markup Score $controls , fe a(year#dind2) vce(cluster stkcd)
+
+local rr = e(r2) * 1.3
+psacalc beta Score, delta(1) rmax(`rr')
+psacalc delta Score, beta(0) rmax(`rr')
+
+psacalc2 beta Score, delta(1) rmax(`rr')
+psacalc2 delta Score, beta(0) rmax(`rr')
+
+psacalc beta Score, delta(1) rmax(`rr')
+psacalc delta Score, beta(0) rmax(`rr')
+
+
+
+konfound Score, indx("RIR")
+konfound Score, indx("IT")
+
 di as result "baseline beta(Score) = " %14.10f _b[Score] ", N = " e(N)
 
 
