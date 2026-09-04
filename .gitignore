@@ -6,3 +6,4 @@ output/
 *.log
 *.smcl
 .pmerge_parquet/
+~*.stswp
