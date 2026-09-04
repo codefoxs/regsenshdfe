@@ -1,0 +1,8 @@
+# 数据与产出不进仓库
+*.dta
+*.parquet
+*.csv
+output/
+*.log
+*.smcl
+.pmerge_parquet/

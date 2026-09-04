@@ -1,4 +1,4 @@
-*! regsenshdfe v0.2  2026-09-01
+*! regsenshdfe v0.3  2026-09-04
 *! Extends regsensitivity (Masten & Poirier 2026 AER) to (high-dimensional)
 *! fixed effects by partialling them out via reghdfe before handing the
 *! residualized variables to regsensitivity. Not an official package.
@@ -12,6 +12,11 @@
 *! and then running the sensitivity analysis on the residuals reproduces
 *! the same coefficients/R^2 that a single regression with the fixed
 *! effects included as covariates would give.
+*!
+*! v0.3: absorb() is parsed down to its underlying variable names before
+*! markout, so interactions (year#dind2), factor prefixes (i.firm) and
+*! FE-saving names (FE1=firm) -- all legal in reghdfe's absorb(), none of
+*! them a legal varlist -- no longer break sample marking.
 *!
 *! v0.2: each variable is residualized IN PLACE under its own original
 *! name (original values stashed to a tempvar, restored on exit) instead
@@ -50,7 +55,29 @@ program define regsenshdfe, eclass
     }
 
     marksample touse
-    markout `touse' `absorb'
+
+    * --- strip absorb() down to plain variable names for markout ---
+    * absorb() is reghdfe's own syntax: interactions (year#dind2), factor
+    * prefixes (i.firm), FE-saving names (FE1=firm) and trailing options
+    * (, savefe) are all legal there, and none of them parse as the plain
+    * varlist markout wants. Anything left that isn't a numeric variable is
+    * skipped here and left for reghdfe to complain about properly.
+    local absspec `absorb'
+    local cpos = strpos("`absspec'", ",")
+    if `cpos' local absspec = substr("`absspec'", 1, `cpos' - 1)
+    local absspec : subinstr local absspec "##" " ", all
+    local absspec : subinstr local absspec "#" " ", all
+
+    local absvars
+    foreach tok of local absspec {
+        local epos = strpos("`tok'", "=")
+        if `epos' local tok = substr("`tok'", `epos' + 1, .)
+        local dpos = strrpos("`tok'", ".")
+        if `dpos' local tok = substr("`tok'", `dpos' + 1, .)
+        capture confirm numeric variable `tok'
+        if !_rc local absvars `absvars' `tok'
+    }
+    markout `touse' `absvars'
 
     tokenize `varlist'
     local depvar   `1'
