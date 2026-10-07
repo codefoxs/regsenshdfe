@@ -36,8 +36,8 @@ has been executed on every supported Stata version or operating system.
   help in an isolated temporary PLUS directory. `which regsenshdfe` resolved to
   that installation; an installed-command smoke test returned version 0.4.0 and
   600 observations. The user's normal ado installation was not overwritten.
-- Ten command examples in each README and the English help matched the runnable
-  examples file. Local documentation links, package file entries, SMCL brace
+- README and English-help command examples were checked against the runnable
+  examples and explicit-FE comparison scripts. Local documentation links, package file entries, SMCL brace
   balance, and absence of machine-specific source paths passed static checks.
 
 The bootstrap prints Stata's warning that its rclass wrapper does not provide
@@ -79,3 +79,32 @@ noncomparison controls throughout.
   residual names; weights, factor/time-series analysis variables and VCE options
   are not supported.
 - The bootstrap is an illustration, not an inference recommendation.
+
+## README follow-up: explicit fixed effects and interpreted results
+
+The bilingual READMEs now show separate worked sections for DMP bounds and
+breakdown, Oster equality/bounded-delta sets, and explain-away/sign thresholds.
+The output tables were transcribed from actual runs of test/examples.do.
+Repeated identical rows in the upstream bounded-delta display are shown once
+per distinct parameter value, and that presentation choice is stated.
+
+The additional test/compare_r2.do checks the same 600-observation panel using
+explicit i.firm i.year indicators:
+
+| Specification | R2(medium) or overall R2 | DMP breakdown |
+| --- | --- | --- |
+| regress + FE dummies / reghdfe overall | 0.65915834 | Not applicable |
+| Native regsensitivity, compare(w1 w2) | 0.28872647 | 0.31975099 |
+| regsenshdfe, absorb(firm year) | 0.28872647 | 0.31975099 |
+| Native regsensitivity, all controls including FE compared | 0.65915834 | 0.19565717 |
+
+The full DMP tables/summary statistics and Oster equality tables match within
+1e-7 absolute tolerance; measured maximum differences were zero. The Oster
+comparison also checks the locations/codes of missing entries. Overall regression
+R-squared and the treatment coefficient agree within 1e-8 relative tolerance.
+The script is included in test/run_all.do.
+
+Two additional Oster breakdown examples fix long-model R-squared at
+1.3 times residualized R2(medium), or 0.37534441. The explain-away threshold is
+1.10580156; the sign threshold is 1.00000000. They demonstrate why a threshold
+for explaining away the coefficient cannot substitute for a sign-robustness check.

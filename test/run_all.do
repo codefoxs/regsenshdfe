@@ -8,6 +8,7 @@ set more off
 do test/test_regsenshdfe.do
 do test/test_edge_cases.do
 dis as result "COMPARED_CELLS=" rsh_cells " MAX_RELDIF=" %12.5e rsh_max_reldif
+do test/compare_r2.do
 do test/examples.do
 do test/bootstrap.do
 dis as result "ALL TESTS AND EXAMPLES COMPLETED"

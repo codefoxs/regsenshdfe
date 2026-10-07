@@ -132,6 +132,16 @@ A manually supplied R-squared must use that same scale. Treating fixed effects
 as comparison controls is a different specification, not supported here.
 
 {pstd}
+The repository script {cmd:test/compare_r2.do} compares explicit
+{cmd:i.firm i.year} indicators against absorption on the same simulated panel.
+Both regression methods give overall R-squared 0.65915834. With
+{cmd:compare(w1 w2)}, native regsensitivity and regsenshdfe both report
+R2(medium) 0.28872647 and a DMP breakdown point of 0.31975099.
+Omitting compare() from the native call instead includes FE in the comparison
+group: R2(medium) becomes 0.65915834 and the breakdown point becomes 0.19565717.
+The full DMP and Oster result tables are also checked for equality.
+
+{pstd}
 The statistics concern point identification, not standard errors. No robust or
 clustered VCE or confidence intervals are computed. The repository's small
 cluster-bootstrap example illustrates resampling only; it is not a validated
@@ -193,6 +203,7 @@ data and replaces the current data in memory:
 
 {phang2}{cmd:. adopath ++ "."}{p_end}
 {phang2}{cmd:. do test/make_panel.do}{p_end}
+{phang2}{cmd:. recast double y x w1 w2}{p_end}
 
 {pstd}DMP bounds and postestimation graph:{p_end}
 {phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table}{p_end}
@@ -207,6 +218,16 @@ data and replaces the current data in memory:
 
 {pstd}Oster bounds and distinct breakdown hypotheses:{p_end}
 {phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(0, eq) table}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(sign) table}{p_end}
+
+{pstd}
+In this example, the relative R-squared specification gives an explain-away
+threshold of 1.10580156 and a sign breakdown point of 1.00000000. The latter is a
+robustness boundary, not necessarily an attained negative coefficient at that
+exact value. These are different questions under the same R-squared assumption.
+The following calls also vary the long-model R-squared:
+
 {phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(.8 .9 1) beta(0, eq) plot}{p_end}
 {phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(.8 .9 1) beta(sign) table}{p_end}
 

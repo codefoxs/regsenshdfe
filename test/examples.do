@@ -7,6 +7,8 @@ version 15.0
 set more off
 adopath ++ "."
 do test/make_panel.do
+* Match the precision used for direct native-command comparisons.
+recast double y x w1 w2
 
 * 1. DMP bounds with all controls as the comparison group.
 regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
@@ -23,6 +25,8 @@ regsenshdfe breakdown y x w1 w2, absorb(firm year) beta(.2, lb) cbar(1) table
 * 4. Oster equality and bounded-delta analyses on the residualized R2 scale.
 regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table
 regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, bound) r2long(.95) table
+regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(0, eq) table
+regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(sign) table
 regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(.8 .9 1) beta(0, eq) plot
 regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(.8 .9 1) beta(sign) table
 
