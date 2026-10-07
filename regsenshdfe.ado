@@ -1,147 +1,156 @@
-*! regsenshdfe v0.3  2026-09-04
-*! Extends regsensitivity (Masten & Poirier 2026 AER) to (high-dimensional)
-*! fixed effects by partialling them out via reghdfe before handing the
-*! residualized variables to regsensitivity. Not an official package.
-*!
-*! Idea: regsensitivity's own DMP/Oster calculations are built on plain
-*! `regress`, so factor-variable fixed effects (i.firm i.year ...) get
-*! literally expanded into dummy columns -- fine for a few dozen levels
-*! (e.g. state), infeasible for firm/firm-year panels. reghdfe's demeaning
-*! algorithm scales to that, and by the Frisch-Waugh-Lovell theorem,
-*! residualizing y, x, and every control against the same fixed effects
-*! and then running the sensitivity analysis on the residuals reproduces
-*! the same coefficients/R^2 that a single regression with the fixed
-*! effects included as covariates would give.
-*!
-*! v0.3: absorb() is parsed down to its underlying variable names before
-*! markout, so interactions (year#dind2), factor prefixes (i.firm) and
-*! FE-saving names (FE1=firm) -- all legal in reghdfe's absorb(), none of
-*! them a legal varlist -- no longer break sample marking.
-*!
-*! v0.2: each variable is residualized IN PLACE under its own original
-*! name (original values stashed to a tempvar, restored on exit) instead
-*! of a throwaway tempvar, so regsensitivity's own output shows the real
-*! variable names (Treatment/Outcome/table headers) instead of __000001-
-*! style placeholders. The dataset is left exactly as it was found,
-*! whether or not the regsensitivity call succeeds.
-
+*! regsenshdfe 0.4.0  08oct2026
+*! HDFE partialling-out wrapper for regsensitivity; independent extension.
 program define regsenshdfe, eclass
-    version 14.0
-
+    version 15.0
+    local call `"regsenshdfe `0'"'
     gettoken subcmd 0 : 0, parse(" ,")
     local subcmd = lower("`subcmd'")
-    if !inlist("`subcmd'", "bounds", "breakdown") {
-        di as error "regsenshdfe: first word must be {bf:bounds} or {bf:breakdown} (regsensitivity's own subcommands)"
-        exit 198
-    }
-
-    syntax varlist(min=2 numeric) [if] [in], ABSorb(string) ///
-        [COMpare(varlist numeric) NOCOMpare(varlist numeric) *]
-
-    if "`compare'" != "" & "`nocompare'" != "" {
-        di as error "regsenshdfe: specify compare() or nocompare(), not both"
-        exit 198
-    }
-
-    cap which reghdfe
-    if _rc {
-        di as error "regsenshdfe requires {bf:reghdfe}. Install with: ssc install reghdfe"
-        exit 601
-    }
-    cap which regsensitivity
-    if _rc {
-        di as error "regsenshdfe requires {bf:regsensitivity}. Install with: ssc install regsensitivity"
-        exit 601
-    }
-
-    marksample touse
-
-    * --- strip absorb() down to plain variable names for markout ---
-    * absorb() is reghdfe's own syntax: interactions (year#dind2), factor
-    * prefixes (i.firm), FE-saving names (FE1=firm) and trailing options
-    * (, savefe) are all legal there, and none of them parse as the plain
-    * varlist markout wants. Anything left that isn't a numeric variable is
-    * skipped here and left for reghdfe to complain about properly.
-    local absspec `absorb'
-    local cpos = strpos("`absspec'", ",")
-    if `cpos' local absspec = substr("`absspec'", 1, `cpos' - 1)
-    local absspec : subinstr local absspec "##" " ", all
-    local absspec : subinstr local absspec "#" " ", all
-
-    local absvars
-    foreach tok of local absspec {
-        local epos = strpos("`tok'", "=")
-        if `epos' local tok = substr("`tok'", `epos' + 1, .)
-        local dpos = strrpos("`tok'", ".")
-        if `dpos' local tok = substr("`tok'", `dpos' + 1, .)
-        capture confirm numeric variable `tok'
-        if !_rc local absvars `absvars' `tok'
-    }
-    markout `touse' `absvars'
-
-    tokenize `varlist'
-    local depvar   `1'
-    local indepvar `2'
-    macro shift 2
-    local controls `*'
-
-    if "`controls'" == "" {
-        di as error "regsenshdfe: need at least one control variable"
-        exit 198
-    }
-
-    local allvars `depvar' `indepvar' `controls'
-
-    * --- compare()/nocompare() must be a subset of the controls just listed ---
-    local dupcheck : list dups allvars
-    if "`dupcheck'" != "" {
-        di as error "regsenshdfe: `dupcheck' appears more than once in depvar/indepvar/controls"
-        exit 198
-    }
-    foreach cv of local compare {
-        local ok : list cv in allvars
-        if !`ok' {
-            di as error "regsenshdfe: compare() variable `cv' is not in the depvar/indepvar/controls list"
-            exit 198
+    if "`subcmd'" == "plot" {
+        if "`e(cmd2)'" != "regsenshdfe" {
+            dis as error "run regsenshdfe bounds or breakdown before regsenshdfe plot"
+            exit 301
         }
-    }
-    foreach cv of local nocompare {
-        local ok : list cv in allvars
-        if !`ok' {
-            di as error "regsenshdfe: nocompare() variable `cv' is not in the depvar/indepvar/controls list"
-            exit 198
-        }
-    }
-
-    di as text "{hline 79}"
-    di as text "regsenshdfe: absorbing `absorb' via reghdfe, then calling regsensitivity `subcmd'"
-    di as text "{hline 79}"
-
-    * --- residualize each variable IN PLACE, keeping its original name ---
-    * stash the raw values under a tempvar, then let reghdfe write the
-    * residual back under the original variable name -- regsensitivity's
-    * own display then shows real variable names, not placeholders.
-    foreach v of local allvars {
-        tempvar orig_`v'
-        rename `v' `orig_`v''
-        quietly reghdfe `orig_`v'' if `touse', absorb(`absorb') residuals(`v')
-    }
-
-    local compare_opt
-    if "`compare'"   != "" local compare_opt compare(`compare')
-    if "`nocompare'" != "" local compare_opt nocompare(`nocompare')
-
-    capture noisily regsensitivity `subcmd' `depvar' `indepvar' `controls' if `touse', `compare_opt' `options'
-    local rc = _rc
-
-    * --- restore the dataset to exactly how it was found, success or not ---
-    foreach v of local allvars {
-        drop `v'
-        rename `orig_`v'' `v'
-    }
-
-    if `rc' {
+        preserve
+        qui clear
+        * The upstream bounds plot saves the active dataset before clearing it.
+        tempvar placeholder
+        qui set obs 1
+        qui gen `placeholder' = 0
+        cap noisily regsensitivity plot `0'
+        local rc = _rc
+        restore
         exit `rc'
     }
+    if !inlist("`subcmd'", "bounds", "breakdown") {
+        dis as error "first word must be bounds, breakdown, or plot"
+        exit 198
+    }
 
+    syntax varlist(min=3 numeric) [if] [in], ABSorb(string) ///
+        [COMpare(varlist numeric) NOCOMpare(varlist numeric) ///
+         DMP OSTER RXbar(string) RYbar(string) Cbar(string) ///
+         DELta(string) R2long(string) BETA(string) MAXOVB(string) ///
+         NGRID(integer -1) NOPROduct PLOT TABLE NOPLOT]
+
+    if "`compare'" != "" & "`nocompare'" != "" {
+        dis as error "specify compare() or nocompare(), not both"
+        exit 198
+    }
+    gettoken depvar controls : varlist
+    gettoken indepvar controls : controls
+    local duplicates : list dups varlist
+    if "`duplicates'" != "" {
+        dis as error "outcome, treatment, and controls must be distinct variables"
+        exit 198
+    }
+    foreach group in compare nocompare {
+        local invalid : list `group' - controls
+        if "`invalid'" != "" {
+            dis as error "`group'() must contain only variables listed in controls: `invalid'"
+            exit 198
+        }
+    }
+    local comparison `controls'
+    if "`compare'" != "" local comparison `compare'
+    if "`nocompare'" != "" local comparison : list controls - nocompare
+    if "`comparison'" == "" {
+        dis as error "at least one comparison control is required"
+        exit 198
+    }
+    * Upstream appends r to variable names when constructing residuals.
+    foreach v of local varlist {
+        if strlen("`v'") > 31 {
+            dis as error "regsensitivity requires analysis variable names of at most 31 characters: `v'"
+            exit 198
+        }
+    }
+    foreach dependency in reghdfe regsensitivity {
+        cap which `dependency'
+        if _rc {
+            dis as error "`dependency' is required; see help regsenshdfe for installation"
+            exit 601
+        }
+    }
+
+    local options `dmp' `oster' `noproduct' `plot' `table' `noplot'
+    foreach opt in compare nocompare rxbar rybar cbar delta r2long beta maxovb {
+        if "``opt''" != "" local options `options' `opt'(``opt'')
+    }
+    if `ngrid' != -1 local options `options' ngrid(`ngrid')
+
+    * Enclose every destructive operation, including errors from reghdfe.
+    preserve
+    cap noisily _regsenshdfe_work `subcmd' `varlist' `if' `in', absorb(`absorb') `options'
+    local rc = _rc
+    restore
+    if `rc' {
+        ereturn clear
+        exit `rc'
+    }
+    * Leave e(cmd) and upstream plot metadata intact.
+    ereturn local cmd2 "regsenshdfe"
+    ereturn local cmdline_hdfe `"`call'"'
+    ereturn local absorb `"`absorb'"'
+    ereturn local version_hdfe "0.4.0"
+end
+
+program define _regsenshdfe_work, eclass
+    version 15.0
+    gettoken subcmd 0 : 0
+    syntax varlist(min=3 numeric) [if] [in], ABSorb(string) [PLOT *]
+    marksample touse
+    * Let reghdfe parse FE syntax and determine joint missingness/singletons.
+    unab before : _all
+    qui reghdfe `varlist' if `touse', absorb(`absorb') tolerance(1e-12)
+    * FE-saving options may create named variables on each projection.
+    unab after : _all
+    local generated : list after - before
+    if "`generated'" != "" drop `generated'
+    qui replace `touse' = e(sample)
+    local n_singletons = e(num_singletons)
+    qui count if `touse'
+    local n_hdfe = r(N)
+
+    * Project all variables before replacing any FE or slope input. Double
+    * residuals avoid rounding to the original float/integer storage types.
+    local residuals
+    foreach v of local varlist {
+        tempvar residual
+        unab before : _all
+        qui reghdfe `v' if `touse', absorb(`absorb') residuals(`residual') tolerance(1e-12)
+        unab after : _all
+        local generated : list after - before
+        local generated : list generated - residual
+        if "`generated'" != "" drop `generated'
+        local residuals `residuals' `residual'
+    }
+    qui keep if `touse'
+    keep `residuals'
+    local i = 0
+    foreach v of local varlist {
+        local ++i
+        local residual : word `i' of `residuals'
+        ren `residual' `v'
+    }
+    * Upstream creates <name>r temporarily. Detect overlapping names rather
+    * than allowing an opaque "variable already defined" error downstream.
+    foreach v of local varlist {
+        local residual_name `v'r
+        local collision : list residual_name in varlist
+        if `collision' {
+            dis as error "rename `residual_name': it conflicts with regsensitivity's residual naming"
+            exit 198
+        }
+    }
+    local plotopt `plot'
+    if "`subcmd'" == "breakdown" local plotopt
+    regsensitivity `subcmd' `varlist', `options' `plotopt'
+    if "`subcmd'" == "breakdown" & "`plot'" != "" {
+        * Upstream breakdown plots create variables literally named x and y.
+        * Plot in empty working data to avoid collisions with analysis names.
+        qui clear
+        regsensitivity plot
+    }
+    ereturn scalar N_hdfe = `n_hdfe'
+    ereturn scalar N_singletons = `n_singletons'
 end

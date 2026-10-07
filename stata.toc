@@ -1,0 +1,3 @@
+v 3
+d Stata package by codefoxs
+p regsenshdfe Regression sensitivity analysis with high-dimensional fixed effects

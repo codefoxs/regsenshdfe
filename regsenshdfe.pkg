@@ -1,0 +1,8 @@
+v 3
+d 'REGSENSHDFE': Regression sensitivity analysis with high-dimensional fixed effects
+d Version: 0.4.0
+d Requires: Stata 15, ftools, reghdfe, regsensitivity
+d Author: codefoxs
+d Distribution-Date: 20261008
+f regsenshdfe.ado
+f regsenshdfe.sthlp
