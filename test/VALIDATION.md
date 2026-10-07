@@ -84,9 +84,12 @@ noncomparison controls throughout.
 
 The bilingual READMEs now show separate worked sections for DMP bounds and
 breakdown, Oster equality/bounded-delta sets, and explain-away/sign thresholds.
-The output tables were transcribed from actual runs of test/examples.do.
-Repeated identical rows in the upstream bounded-delta display are shown once
-per distinct parameter value, and that presentation choice is stated.
+The READMEs now embed verbatim Stata output captured by test/readme_output.do.
+The source transcript is test/readme_output.txt. All headers, command echoes,
+missing values and repeated rows are retained. Each README has 14 output blocks,
+verified character-for-character by test/sync_readme_output.py --check.
+The capture completed with README_OUTPUT_COMPLETED and CAPTURE_RC=0.
+The script sets linesize 120 before execution; no output reformatting is applied.
 
 The additional test/compare_r2.do checks the same 600-observation panel using
 explicit i.firm i.year indicators:

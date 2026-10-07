@@ -5,3 +5,6 @@
 *.pkg text eol=lf
 *.toc text eol=lf
 *.md text eol=lf
+
+# Preserve whitespace in the verbatim Stata console transcript.
+test/readme_output.txt text eol=lf -whitespace
