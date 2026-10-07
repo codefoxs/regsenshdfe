@@ -2,11 +2,11 @@
 
 [English README](README.md)
 
-回归系数显著，不代表遗漏变量一定不会改变结论。`regsenshdfe` 用来回答：**遗漏变量需要多强，才能让当前的系数大小或正负号发生变化？**
+`regsenshdfe` 是用于高维固定效应线性模型的遗漏变量敏感性分析命令。命令先通过 `reghdfe` 吸收固定效应，再调用 `regsensitivity` 计算 DMP 和 Oster 框架下的系数识别集及击穿点。
 
-它把 `regsensitivity` 的 DMP 和 Oster 分析接到 `reghdfe` 上，支持企业、年份、行业×年份等高维固定效应。下面按问题分别给出命令、实际结果和解读。这些是敏感性分析，不是显著性检验；临界值不是 p 值或概率。
+固定效应作为始终控制的变量，不参与遗漏变量选择强度的校准。分析结果用于评估系数大小或符号对遗漏变量假设的敏感程度，不提供显著性检验或置信区间。
 
-## 安装与示例数据
+## 安装
 
 需要 Stata 15 或更新版本。在 Stata 中安装依赖：
 
@@ -28,7 +28,11 @@ net install regsenshdfe, from(".") replace
 net install regsenshdfe, from("https://raw.githubusercontent.com/codefoxs/regsenshdfe/main/") replace
 ```
 
-以下结果来自同一份模拟面板：60 家企业、10 年、600 个观测。`y` 为因变量，`x` 为关注的解释变量，`w1 w2` 为控制变量。先在仓库根目录执行：
+## 基本语法与示例数据
+
+估计语法为 `regsenshdfe bounds depvar indepvar controls, absorb(absvars)` 或 `regsenshdfe breakdown depvar indepvar controls, absorb(absvars)`，支持 `if` 和 `in` 样本限制。`bounds` 计算给定敏感性参数下的系数识别集；`breakdown` 计算指定假设的击穿点。
+
+以下示例使用包含 60 家企业、10 个年度、600 个观测的模拟面板。`y` 为因变量，`x` 为目标解释变量，`w1 w2` 为参照控制变量。数据生成命令在仓库根目录运行：
 
 ```stata
 adopath ++ "."
@@ -36,15 +40,17 @@ do test/make_panel.do
 recast double y x w1 w2
 ```
 
-该命令会替换内存中的数据。基准模型为 `y x w1 w2`，吸收企业和年份固定效应，`x` 的系数约为 **0.5621**。下文表格由实际运行结果整理，数值按展示精度取舍；完整命令在 [test/examples.do](test/examples.do)。
+数据生成脚本会替换内存中的数据。基准模型吸收企业和年份固定效应，`x` 的估计系数为 0.5621。以下表格根据实际运行输出整理，并按所示精度取舍。完整示例见 [test/examples.do](test/examples.do)。
 
-## 1. DMP 系数区间：允许遗漏变量后，系数还能是多少？
+## 1. DMP 系数识别区间
+
+在给定遗漏变量选择强度上限的条件下，计算目标系数的识别区间。
 
 ```stata
 regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
 ```
 
-`rxbar` 衡量遗漏变量对 `x` 的选择强度，相对于参照控制变量 `w1 w2`；数值越大，允许的遗漏变量影响越强。这里保留默认的 `rybar=+inf`、`cbar=1`。
+`rxbar` 衡量遗漏变量对 `x` 的选择强度，相对于参照控制变量 `w1 w2`；数值越大，允许的遗漏变量影响越强。本例采用默认值 `rybar=+inf`、`cbar=1`。
 
 | rxbar | 系数可能区间 |
 | --- | --- |
@@ -53,15 +59,17 @@ regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
 | 0.2 | [0.2308, 0.8933] |
 | 0.3 | [0.0411, 1.0830] |
 
-**解读：** 随着允许的遗漏变量影响变强，区间逐渐变宽。在 `rxbar=0.3` 时，最小可能系数仍为 0.0411，正号仍能维持。命令给出的正号击穿点约为 **0.3198（32.0%）**。这里的 32.0% 是相对选择强度，不是“结果出错的概率”。这些区间也不是置信区间。
+识别区间随 `rxbar` 增大而扩大。`rxbar=0.3` 时，下界为 0.0411，区间内的系数均为正。正号假设的击穿点约为 0.3198，原命令以 32.0% 显示。该百分比表示相对选择强度，不具有概率含义；表中区间为识别区间。
 
-## 2. DMP 击穿点：结论从什么强度开始站不住？
+## 2. DMP 击穿点与击穿边界
+
+在不同相关性限制下，计算目标系数保持原符号所允许的选择强度边界。
 
 ```stata
 regsenshdfe breakdown y x w1 w2, absorb(firm year) cbar(0(.2)1) plot
 ```
 
-`cbar` 限制遗漏变量与参照控制变量的相关程度。默认检验能否保持原系数的符号；本例对应“系数为正”。
+`cbar` 指定遗漏变量与参照控制变量的相关性限制。默认假设为保持基准系数的符号，本例对应 beta > 0。
 
 | cbar | 正号击穿点 rxbar |
 | --- | --- |
@@ -72,23 +80,25 @@ regsenshdfe breakdown y x w1 w2, absorb(firm year) cbar(0(.2)1) plot
 | 0.8 | 32.0% |
 | 1.0 | 32.0% |
 
-**解读：** 当要求遗漏变量与参照控制变量不相关时，临界强度约为 0.337；放宽相关性限制后降至约 0.320。这个例子在所列假设下，都不能维持正号到 `rxbar=1` 的参照强度。这个判断依赖本例的比较组和参数设定。
+`cbar=0` 时，正号假设的击穿点约为 0.337；放宽相关性限制后，击穿点降至约 0.320。各设定的击穿点均低于 1，说明在本例的参照组和参数设定下，正号假设无法对达到参照强度的遗漏变量选择保持稳健。
 
-如果关心的不只是正号，而是“系数至少大于 0.2”，可以改为：
+`beta(.2, lb)` 将目标假设设为 beta > 0.2：
 
 ```stata
 regsenshdfe breakdown y x w1 w2, absorb(firm year) beta(.2, lb) cbar(1) table
 ```
 
-**运行结果：** 击穿点约为 **21.7%**。维持“系数大于 0.2”比维持“系数大于零”更难，因此对应临界值更低。
+该设定的击穿点为 21.7%，低于 beta > 0 的击穿点。更严格的系数下界对应更低的可容许选择强度。
 
-## 3. Oster 固定 delta：给定选择强度，系数有哪些可能值？
+## 3. Oster 等式约束下的系数识别集
+
+将比例选择参数 delta 固定为指定值，计算相应的系数识别集。
 
 ```stata
 regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table
 ```
 
-`delta(..., eq)` 把 delta 固定为各个给定值；`r2long(1.3, relative)` 将长模型 R² 设为当前中模型 R² 的 1.3 倍。本例为 `1.3 × 0.28872647 = 0.37534441`。为什么使用这个 R²，见后面的显式虚拟变量对照。
+`delta(..., eq)` 把 delta 固定为各个给定值；`r2long(1.3, relative)` 将长模型 R² 设为当前中模型 R² 的 1.3 倍。本例为 `1.3 × 0.28872647 = 0.37534441`。R² 的定义及数值对照见第 8 节。
 
 | delta | 系数可能取值集合 |
 | --- | --- |
@@ -96,9 +106,11 @@ regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1
 | 0.5 | {0.3747} |
 | 1.0 | {0.1015, 1.5556} |
 
-**解读：** 在给定的 R² 假设下，delta 为 0.5 时得到 0.3747。delta 为 1 时有两个可行解，不能只挑其中较小的一个报告；这两个离散取值也不等于整个 `[0.1015, 1.5556]` 区间。原输出中的 `.` 表示该列没有额外的解，不表示零。
+在该 R² 设定下，delta 为 0.5 时的识别集仅包含 0.3747；delta 为 1 时，识别集包含 0.1015 和 1.5556 两个离散取值。结果应按完整集合报告，而非仅报告其中一个根或将两根之间的区间视为识别集。原输出中的 `.` 表示相应列不存在额外解。
 
-## 4. Oster 有界 delta：只限制选择强度上限，系数区间是什么？
+## 4. Oster 不等式约束下的系数界限
+
+对 delta 的绝对值施加上限，计算相应的系数上下界。
 
 ```stata
 regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, bound) r2long(.95) table
@@ -112,11 +124,13 @@ regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, bound) r2lon
 | 0.5 | [-0.6514, 2.8190] |
 | 1.0 | [-∞, +∞] |
 
-**解读：** 上限为 0.5 时，区间已经包含负数和零，因此不能保证系数为正；上限为 1 时不再给出有限界限。这张表按不同上限各展示一次，原命令当前版本会重复打印部分相同的行。
+delta 绝对值上限为 0.5 时，系数界限包含零及负值，正号假设不再稳健；上限为 1 时，系数界限为整个实数轴。表格按各参数上限列示一次，省略了原命令当前版本重复打印的相同行。
 
-这里的 R² 假设与上一节不同，所以两节结果的差异不能全部归因于 `eq` 和 `bound` 的区别。实际比较时，应同时固定 R² 和其他参数。
+本例的长模型 R² 设为 0.95，与第 3 节不同。比较等式约束与不等式约束的影响时，需要保持 R² 及其他参数一致。
 
-## 5. Oster 归零临界值：多强的遗漏变量能解释掉系数？
+## 5. Oster 系数归零临界值
+
+`beta(0, eq)` 指定 beta != 0 假设，计算使该假设失效的比例选择参数临界值。
 
 ```stata
 regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(0, eq) table
@@ -126,9 +140,11 @@ regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) b
 | --- | --- |
 | 0.37534441 | 1.10580156（110.6%） |
 
-**解读：** 在该 R² 假设下，让系数等于零所需的 delta 约为 1.106。它回答“能否把系数解释到零”，不能单独据此断言系数的正号在所有更弱的选择强度下都不会改变。
+在该 R² 设定下，系数归零对应的 delta 临界值约为 1.106。该结果描述系数等于零的条件，不能替代系数符号的敏感性分析。
 
-## 6. Oster 符号临界值：正向结论什么时候不再稳健？
+## 6. Oster 系数符号临界值
+
+`beta(sign)` 指定保持基准系数符号的假设。本例基准系数为正，因此对应 beta > 0。
 
 ```stata
 regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(sign) table
@@ -138,13 +154,13 @@ regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) b
 | --- | --- |
 | 0.37534441 | 1.00000000（100.0%） |
 
-**解读：** 同一份数据、同一个 R² 假设下，归零临界值为 1.1058，符号临界值却为 1.0000。两者回答不同问题。后者是失去符号稳健性的边界，不意味着在边界点上一定已经存在负系数；不能把“归零 delta 大于 1”直接写成“delta 在 1 附近时符号一定稳健”。
+在相同样本和 R² 设定下，系数归零临界值为 1.1058，符号临界值为 1.0000。符号临界值表示稳健性的边界，不要求在该边界点上已存在负系数。因此，归零临界值大于 1 并不足以推出符号在 delta 接近 1 时仍然稳健。
 
-DMP 的 rxbar 与 Oster 的 delta 定义不同，也不能直接比较这两个数，判定哪个方法显示“更稳健”。
+DMP 的 rxbar 与 Oster 的 delta 具有不同定义，二者的数值大小不构成跨方法的稳健性排序。
 
-## 7. 如何选择参照控制变量？
+## 7. 参照控制变量的设定
 
-有些变量需要控制，但不适合作为遗漏变量强度的参照。下面保留 `w0`，只用 `w1 w2` 作比较：
+`compare()` 指定用于校准遗漏变量选择强度的控制变量；`nocompare()` 指定不参与校准的控制变量。以下两条命令均控制 `w0`，并以 `w1 w2` 为参照组：
 
 ```stata
 regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 .1 .2) table
@@ -159,13 +175,13 @@ regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 .1 .2) 
 | 0.1 | [0.3496, 0.6848] |
 | 0.2 | [0.1729, 0.8615] |
 
-**解读：** `nocompare(w0)` 不会把 `w0` 从模型中删除，它只是排除在参照组之外。相比前面的模型，这里又控制了 `w0`，所以基准系数从约 0.5621 变成 0.5172。固定效应在 `regsenshdfe` 中始终属于不参与比较的变量。
+`nocompare(w0)` 将 `w0` 排除在参照组之外，但保留其控制作用。增加 `w0` 后，基准系数由约 0.5621 变为 0.5172。固定效应在 `regsenshdfe` 中始终作为非参照控制变量处理。
 
-## 8. R² 核对：与原命令加 i.firm i.year 的结果相同吗？
+## 8. R² 定义与显式固定效应对照
 
-**当固定效应在两条命令中都不参与比较时，结果相同；把固定效应纳入参照组后，R² 和敏感性结果会改变。** 下列数字来自实际对照，完整脚本为 [test/compare_r2.do](test/compare_r2.do)。
+以下对照使用相同样本，分别采用显式固定效应虚拟变量和高维吸收。固定效应是否属于参照组决定敏感性分析所使用的 R² 定义。完整核验脚本见 [test/compare_r2.do](test/compare_r2.do)。
 
-### 8.1 普通回归：显式虚拟变量与 absorb() 相同
+### 8.1 回归系数与总体 R²
 
 ```stata
 regress y x w1 w2 i.firm i.year
@@ -177,9 +193,9 @@ reghdfe y x w1 w2, absorb(firm year)
 | `regress` + `i.firm i.year` | 0.56205310 | 0.65915834 | 未单独返回 |
 | `reghdfe` + `absorb(firm year)` | 0.56205310 | 0.65915834 | 0.28872647 |
 
-**解读：** 高维吸收没有丢掉固定效应的解释力。总体 R² 仍是 0.6592；within R² 衡量剔除固定效应后剩余变动的解释程度，是另一个指标。
+两种估计方式的系数和总体 R² 一致。总体 R² 为 0.65915834；within R² 为 0.28872647，衡量剔除固定效应后的剩余变动中由解释变量说明的比例。
 
-### 8.2 敏感性分析：固定效应不参加比较，两条路径相同
+### 8.2 固定效应不属于参照组
 
 ```stata
 regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 .1 .2 .3) table
@@ -191,11 +207,11 @@ regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
 | 原命令 + `i.firm i.year` + `compare(w1 w2)` | 0.56205311 | 0.20729475 | 0.28872647 | 0.31975099 |
 | `regsenshdfe` | 0.56205311 | 0.20729475 | 0.28872647 | 0.31975099 |
 
-**解读：** 即使显式写了虚拟变量，只要它们不在 `compare()` 中，原命令也会先剔除它们，再做敏感性分析。因此两条路径都使用 0.2887，而不是总体 R² 0.6592。
+原命令将未列入 `compare()` 的固定效应虚拟变量剔除后，再进行敏感性分析。因此，两种实现均使用残差化 R² 0.28872647，并得到相同的击穿点。
 
-对照也检查了完整 DMP 区间表，以及第 3 节 Oster 设定的完整结果表，均通过 `1e-7` 容差检查。本例两条路径的表格数值最大绝对差为零；这不是对所有数据都逐位相同的承诺。
+完整 DMP 区间表及第 3 节 Oster 结果表均通过 `1e-7` 容差核验。本例的最大绝对差为零；其他数据中的差异按数值容差判断。
 
-### 8.3 原命令不写 compare()：把固定效应也纳入参照组
+### 8.3 固定效应属于参照组
 
 ```stata
 regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 .1 .2 .3) table
@@ -206,11 +222,11 @@ regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 .1 .2 .3) table
 | 仅 `w1 w2` | 0.56205311 | 0.28872647 | 0.31975099 |
 | `w1 w2` 加企业和年份虚拟变量 | 0.56205311 | 0.65915834 | 0.19565717 |
 
-**解读：** 第二行确实使用包含固定效应的总体 R²，但同时改变了遗漏变量强度的参照组。这是另一种分析设定，不是给同一个分析“补上正确的 R²”。当前 `regsenshdfe` 对应第一行；Oster 的 `r2long()` 也应使用与第一行一致的残差化尺度。
+原命令省略 `compare()` 时，将所有控制变量（包括固定效应虚拟变量）纳入参照组。此时 R²(medium) 等于总体 R²，击穿点也相应改变。当前 `regsenshdfe` 实现固定效应不属于参照组的设定，其 Oster `r2long()` 参数必须使用一致的残差化尺度。
 
-## 绘图、结果提取与更多案例
+## 绘图与存储结果
 
-估计后可以画图或提取结果：
+`bounds` 估计后可调用绘图子命令并提取结果矩阵：
 
 ```stata
 regsenshdfe plot, xline(1)
@@ -218,11 +234,11 @@ matrix bounds = e(idset_table)
 matrix summary = e(sumstats)
 ```
 
-`bounds` 的结果表是 `e(idset_table)`，`breakdown` 的结果表是 `e(breakfront_table)`。`e(breakdown)` 仅在原命令支持的部分 `bounds` 设定下提供；不要把它当作所有调用都必有的返回值。
+`bounds` 的结果表是 `e(idset_table)`，`breakdown` 的结果表是 `e(breakfront_table)`。`e(breakdown)` 仅在原命令支持的部分 `bounds` 设定下返回。
 
 交互固定效应、样本限制、参数网格和 `estimates store` 案例见 [test/examples.do](test/examples.do)；企业聚类 bootstrap 演示见 [test/bootstrap.do](test/bootstrap.do)。完整选项及返回值请运行 `help regsenshdfe`。
 
-## 验证与使用边界
+## 测试与限制
 
 在仓库根目录执行 `do test/run_all.do`，可运行数值测试、R² 对照和案例。测试会替换内存中的数据。运行环境和详细核验见 [test/VALIDATION.md](test/VALIDATION.md)。
 
