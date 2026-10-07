@@ -23,7 +23,7 @@ def main():
         # Only blank separator lines outside the command/output are excluded.
         blocks[key] = source[start.end():end].strip('\n')
     pattern = re.compile(
-        r'(<!-- stata-output:(\w+) -->\n)```text\n.*?```\n(<!-- /stata-output:\2 -->)',
+        r'(<!-- stata-output:(\w+) -->\n\n*)```text\n.*?```\n(<!-- /stata-output:\2 -->)',
         re.S,
     )
     for name in ('README.md', 'README_CN.md'):

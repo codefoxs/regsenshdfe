@@ -48,8 +48,20 @@ controls.
 Working residuals use double precision. The original data, variable storage
 types, labels, observation order and variable order are restored on success or
 failure. This includes errors during fixed-effect estimation and plotting.
-Saved fixed-effect variables requested inside {opt absorb()} are temporary;
-they are not returned to the caller's data.
+Saved fixed-effect variables requested inside {opt absorb()} are temporary.
+They are not returned to the caller's data.
+
+{pstd}
+DMP abbreviates the surnames of Paul Diegert, Matt Masten and Alex Poirier,
+authors of Assessing Omitted Variable Bias when the Controls are Endogenous
+(upstream label: 2022). Oster refers to Emily Oster and her 2019 paper
+Unobservable Selection and Coefficient Stability: Theory and Evidence.
+The Oster routines also include Masten and Poirier (2022) extensions on
+coefficient signs. See {help regsensitivity} for the referenced papers.
+
+{pstd}
+In plain language: the methods ask how much omitted influence the coefficient
+can withstand. Their sensitivity parameters have different definitions.
 
 {marker options}{...}
 {title:Options}
@@ -58,22 +70,22 @@ they are not returned to the caller's data.
 {synopthdr}
 {synoptline}
 {synopt:{opt absorb(absvars)}}Required FE specification, parsed by reghdfe{p_end}
-{synopt:{opt compare(varlist)}}Subset of listed controls used for calibration; default all controls{p_end}
+{synopt:{opt compare(varlist)}}Subset of listed controls used for calibration. Default all controls{p_end}
 {synopt:{opt nocompare(varlist)}}Listed controls excluded from calibration{p_end}
-{synopt:{opt dmp}}DMP sensitivity analysis; default{p_end}
+{synopt:{opt dmp}}DMP sensitivity analysis. Default{p_end}
 {synopt:{opt oster}}Oster analysis and extensions implemented by regsensitivity{p_end}
 {synopt:{opt rx:bar(spec)}}DMP bounds grid for treatment selection strength{p_end}
 {synopt:{opt ry:bar(spec)}}DMP outcome selection strength{p_end}
 {synopt:{opt c:bar(spec)}}DMP correlation restriction{p_end}
 {synopt:{opt delta(spec)}}Oster bounds grid for proportional selection{p_end}
 {synopt:{opt r2long(spec)}}Oster long-model R-squared on the residualized scale{p_end}
-{synopt:{opt beta(spec)}}Breakdown hypothesis; default sign{p_end}
+{synopt:{opt beta(spec)}}Breakdown hypothesis. Default sign{p_end}
 {synopt:{opt maxovb(spec)}}Upstream Oster bounds restriction on absolute omitted-variable bias{p_end}
 {synopt:{opt ngrid(#)}}Upstream plotting-grid size{p_end}
-{synopt:{opt noproduct}}Pair parameter values instead of their Cartesian product; bounds only{p_end}
+{synopt:{opt noproduct}}Pair parameter values instead of their Cartesian product. Bounds only{p_end}
 {synopt:{opt table}}Request a table{p_end}
 {synopt:{opt plot}}Request a graph{p_end}
-{synopt:{opt noplot}}Retain upstream noplot semantics; see below{p_end}
+{synopt:{opt noplot}}Retain upstream noplot semantics. See below{p_end}
 {synoptline}
 
 {phang}
@@ -89,17 +101,35 @@ Noncomparison controls remain in the model and are further partialled out by
 regsensitivity. At least one control must remain in the comparison group.
 
 {phang}
+{opt rxbar()} bounds DMP selection on the treatment relative to the comparison
+controls as a group, using the method's standardized coefficient norms.
+{opt rybar()} is the corresponding limit in the outcome equation.
+Defaults are rybar = +inf and cbar = 1. {opt cbar()} restricts correlation,
+not relative selection strength. Oster's {opt delta()} compares selection on
+unobservables with selection on the observable comparison group under a
+different proportional-selection definition. It is not DMP's rxbar.
+Only {cmd:r2long(#, relative)} interprets # as a multiplier, specifically of
+the residualized medium-model R-squared, not of control coefficients.
+
+{phang}
+In plain language: {cmd:compare(w1 w2)} chooses a joint measuring stick.
+{cmd:rxbar(0.3)} allows omitted selection on x up to 30% of that benchmark.
+If compare() and nocompare() are omitted, all listed controls are compared.
+Absorbed FE never join the comparison group. The main examples explicitly
+state compare(). The nocompare() example shows its alternative syntax.
+
+{phang}
 Sensitivity parameter specifications retain upstream syntax, including
 {cmd:delta(1, eq)}, {cmd:delta(1, bound)}, and {cmd:r2long(1.3, relative)}.
 For the complete method-specific meanings and permitted combinations, see
 {help regsensitivity_bounds} and {help regsensitivity_breakdown}.
-Breakdown solves for rxbar (DMP) or delta (Oster); do not use the corresponding
+Breakdown solves for rxbar (DMP) or delta (Oster). Do not use the corresponding
 bounds-grid option to specify a breakdown frontier.
 
 {phang}
 {cmd:beta(sign)} asks whether beta retains the medium-model coefficient's sign.
-{cmd:beta(.2, lb)} asks whether beta is greater than .2.
-For Oster, {cmd:beta(0, eq)} asks whether beta differs from zero; its breakdown
+{cmd:beta(0.2, lb)} asks whether beta is greater than 0.2.
+For Oster, {cmd:beta(0, eq)} asks whether beta differs from zero. Its breakdown
 point is the explain-away threshold. This differs from the sign-change question.
 In Oster bounds, {cmd:delta(..., eq)} fixes delta at each value, whereas
 {cmd:delta(..., bound)} bounds its absolute magnitude. The tested upstream
@@ -109,7 +139,7 @@ version does not implement {cmd:beta(..., eq)} for DMP.
 Use {cmd:table} for explicit table-only output. {cmd:noplot} preserves upstream
 behavior and is not a universal switch suppressing all default plots. With
 {cmd:noproduct}, use compatible parameter and dense-grid lengths. A tested
-example uses {cmd:rxbar(0 .1 .2) cbar(0 .5 1) noproduct ngrid(3)}; upstream 1.2.0
+example uses {cmd:rxbar(0 0.1 0.2) cbar(0 0.5 1) noproduct ngrid(3)}. Upstream 1.2.0
 can fail on some default dense-grid combinations.
 
 {marker interpretation}{...}
@@ -125,7 +155,7 @@ controls and the FE.
 {pstd}
 On the same effective sample, the target is equivalent to explicit FE indicators
 in regsensitivity with those indicators excluded from {opt compare()}.
-The Frisch-Waugh-Lovell theorem establishes coefficient invariance; it does not
+The Frisch-Waugh-Lovell theorem establishes coefficient invariance. It does not
 make within and overall R-squared equal. For Oster,
 {cmd:r2long(1.3, relative)} is 1.3 times the residualized medium-model R-squared.
 A manually supplied R-squared must use that same scale. Treating fixed effects
@@ -144,7 +174,7 @@ The full DMP and Oster result tables are also checked for equality.
 {pstd}
 The statistics concern point identification, not standard errors. No robust or
 clustered VCE or confidence intervals are computed. The repository's small
-cluster-bootstrap example illustrates resampling only; it is not a validated
+cluster-bootstrap example illustrates resampling only. It is not a validated
 general inference procedure for potentially nonregular breakdown functionals.
 
 {marker results}{...}
@@ -170,7 +200,7 @@ Availability depends on the selected subcommand and method.
 {synopt:{cmd:e(version_hdfe)}}Wrapper version{p_end}
 
 {pstd}
-{cmd:e(cmd)} remains {cmd:regsensitivity} for upstream compatibility;
+{cmd:e(cmd)} remains {cmd:regsensitivity} for upstream compatibility.
 {cmd:e(cmdline)} describes its residualized call. Results can be saved and
 restored using {helpb estimates store} and {helpb estimates restore}.
 No {cmd:e(sample)} indicator or regression coefficient/VCE matrix is supplied.
@@ -184,7 +214,7 @@ Prefer {cmd:regsenshdfe plot}. It invokes {cmd:regsensitivity plot} in isolated
 working data and restores the active data even when plotting fails. Upstream
 1.2.0 breakdown plots create variables literally named x and y, which can
 conflict with user data when upstream plotting is called directly.
-Plot options retain upstream syntax; use {cmd:name(mygraph)}, not
+Plot options retain upstream syntax. Use {cmd:name(mygraph)}, not
 {cmd:name(mygraph, replace)}.
 
 {pstd}
@@ -197,29 +227,29 @@ Statistical and numerical limitations of the dependency remain applicable.
 {title:Examples and tests}
 
 {pstd}
-Download or clone the repository for test scripts; net install installs the ado
+Download or clone the repository for test scripts. Net install installs the ado
 and help only. From the repository root, the following setup creates simulated
 data and replaces the current data in memory:
 
 {phang2}{cmd:. adopath ++ "."}{p_end}
-{phang2}{cmd:. do test/make_panel.do}{p_end}
+{phang2}{cmd:. Do test/make_panel.do}{p_end}
 {phang2}{cmd:. recast double y x w1 w2}{p_end}
 
 {pstd}DMP bounds and postestimation graph:{p_end}
-{phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table}{p_end}
+{phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2 0.3) table}{p_end}
 {phang2}{cmd:. regsenshdfe plot, xline(1)}{p_end}
 
 {pstd}Keep w0 but calibrate against w1 and w2 only:{p_end}
-{phang2}{cmd:. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 .1 .2) table}{p_end}
-{phang2}{cmd:. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 .1 .2) table}{p_end}
+{phang2}{cmd:. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2) table}{p_end}
+{phang2}{cmd:. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 0.1 0.2) table}{p_end}
 
 {pstd}DMP breakdown frontier:{p_end}
-{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) cbar(0(.2)1) plot}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) cbar(0(0.2)1) plot}{p_end}
 
 {pstd}Oster bounds and distinct breakdown hypotheses:{p_end}
-{phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table}{p_end}
-{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(0, eq) table}{p_end}
-{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(sign) table}{p_end}
+{phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) oster delta(0 0.5 1, eq) r2long(1.3, relative) table}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(1.3, relative) beta(0, eq) table}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(1.3, relative) beta(sign) table}{p_end}
 
 {pstd}
 In this example, the relative R-squared specification gives an explain-away
@@ -228,14 +258,14 @@ robustness boundary, not necessarily an attained negative coefficient at that
 exact value. These are different questions under the same R-squared assumption.
 The following calls also vary the long-model R-squared:
 
-{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(.8 .9 1) beta(0, eq) plot}{p_end}
-{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(.8 .9 1) beta(sign) table}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(0.8 0.9 1) beta(0, eq) plot}{p_end}
+{phang2}{cmd:. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(0.8 0.9 1) beta(sign) table}{p_end}
 
 {pstd}Interacted FE and sample restrictions:{p_end}
-{phang2}{cmd:. regsenshdfe bounds y x w1 w2 if year >= 2003 in 1/500, absorb(firm year#industry) rxbar(0 .1 .2) table}{p_end}
+{phang2}{cmd:. regsenshdfe bounds y x w1 w2 if year >= 2003 in 1/500, absorb(firm year#industry) compare(w1 w2) rxbar(0 0.1 0.2) table}{p_end}
 
 {pstd}Parameter tuples:{p_end}
-{phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2) cbar(0 .5 1) noproduct ngrid(3) table}{p_end}
+{phang2}{cmd:. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2) cbar(0 0.5 1) noproduct ngrid(3) table}{p_end}
 
 {pstd}
 These examples are in {cmd:test/examples.do}. Assertion-based numerical and data
@@ -251,4 +281,4 @@ The English README and linked README_CN.md provide matching documentation.
 Version 0.4.0 develops the original local 0.3 wrapper. DMP and Oster method labels
 follow the upstream documentation. For formulas, assumptions and bibliographic
 details, consult {help regsensitivity}. This package does not bundle dependency
-source code. MIT license for the wrapper; dependencies retain their own licenses.
+source code. MIT license for the wrapper. Dependencies retain their own licenses.

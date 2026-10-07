@@ -7,7 +7,7 @@ version 15.0
 set more off
 adopath ++ "."
 do test/make_panel.do
-* Upstream replaces analysis variables in place; preserve residual precision.
+* Upstream replaces analysis variables in place. Preserve residual precision.
 recast double y x w1 w2
 
 qui regress y x w1 w2 i.firm i.year
@@ -27,11 +27,11 @@ matrix colnames regression_check = beta overall_R2 within_R2
 matrix list regression_check, format(%12.8f)
 
 * Explicit comparison controls are essential: FE stay outside the benchmark.
-qui regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 .1 .2 .3) table
+qui regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 matrix native_stats = e(sumstats)
 matrix native_bounds = e(idset_table)
 scalar native_bd = e(breakdown)
-qui regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
+qui regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 matrix hdfe_stats = e(sumstats)
 matrix hdfe_bounds = e(idset_table)
 scalar hdfe_bd = e(breakdown)
@@ -51,7 +51,7 @@ dis "STATS_MAX_ABS_DIFF=" %12.5e stats_max_abs
 dis "BOUNDS_MAX_ABS_DIFF=" %12.5e bounds_max_abs
 
 * Omitting compare() in the native command puts the FE into the benchmark.
-qui regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 .1 .2 .3) table
+qui regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 0.1 0.2 0.3) table
 matrix all_controls = e(sumstats)
 scalar all_bd = e(breakdown)
 assert reldif(all_controls[4,1],r2_dummy) < 1e-8
@@ -61,9 +61,9 @@ matrix colnames calibration_check = beta R2_medium DMP_breakdown
 matrix list calibration_check, format(%12.8f)
 
 * Oster also matches when FE are excluded and R2long uses the same scale.
-qui regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) oster delta(0 .5 1, eq) r2long(1.3, relative) table
+qui regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) oster delta(0 0.5 1, eq) r2long(1.3, relative) table
 matrix native_oster = e(idset_table)
-qui regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table
+qui regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) oster delta(0 0.5 1, eq) r2long(1.3, relative) table
 matrix hdfe_oster = e(idset_table)
 assert rowsof(native_oster) == rowsof(hdfe_oster)
 assert colsof(native_oster) == colsof(hdfe_oster)

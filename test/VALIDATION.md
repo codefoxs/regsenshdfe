@@ -68,8 +68,8 @@ noncomparison controls throughout.
 
 ## Remaining boundaries
 
-- No publication to GitHub or network installation from the intended GitHub URL
-  was performed.
+- The repository has been published to GitHub. Installation was tested from an
+  isolated local package directory, not through the network installation URL.
 - This is a small-panel correctness suite, not a large-panel performance
   benchmark or proof of the underlying identification assumptions.
 - Graph execution was tested; no visual design review was performed.
@@ -111,3 +111,18 @@ Two additional Oster breakdown examples fix long-model R-squared at
 1.3 times residualized R2(medium), or 0.37534441. The explain-away threshold is
 1.10580156; the sign threshold is 1.00000000. They demonstrate why a threshold
 for explaining away the coefficient cannot substitute for a sign-robustness check.
+
+## Documentation clarification and rerun
+
+The main README/help examples now explicitly specify compare(w1 w2), and
+command arguments and prose use leading zeros. Native Stata output remains
+verbatim, including upstream numeric formats. Both READMEs introduce the method
+authors and explain the parameter benchmarks before the worked examples.
+Each worked result has an additional plain-language interpretation.
+
+The updated test/readme_output.do completed with README_OUTPUT_COMPLETED and
+CAPTURE_RC=0. All 14 output blocks per README passed the exact synchronization
+check. The revised test/compare_r2.do and test/examples.do completed with
+COMPARE_RC=0 and EXAMPLES_RC=0. Maximum absolute differences for DMP summary
+statistics, DMP bounds and Oster identified sets were all zero in this rerun.
+No changes to the wrapper's statistical implementation were made.

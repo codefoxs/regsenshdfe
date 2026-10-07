@@ -5,12 +5,30 @@
 `regsenshdfe` implements omitted-variable sensitivity analysis for linear models
 with high-dimensional fixed effects. It partials out fixed effects using
 `reghdfe`, then calls `regsensitivity` to compute coefficient identified sets and
-breakdown points under the DMP and Oster frameworks.
+breakdown points under the Diegert, Masten and Poirier (DMP) and Emily Oster frameworks.
 
 Fixed effects are always included as controls and excluded from the comparison
 group used to calibrate selection. The results describe sensitivity of coefficient
-magnitudes and signs to omitted-variable assumptions; they do not provide
+magnitudes and signs to omitted-variable assumptions. They do not provide
 significance tests or confidence intervals.
+
+## Methods and parameters
+
+DMP stands for Paul Diegert, Matt Masten and Alex Poirier. Their paper, *Assessing Omitted Variable Bias when the Controls are Endogenous*, studies how omitted variables can change regression coefficients when observed controls may themselves be endogenous. This document follows the upstream label DMP (2022).
+
+Oster refers to economist Emily Oster. Her paper, *Unobservable Selection and Coefficient Stability: Theory and Evidence* (2019), uses changes in coefficients and R-squared after adding controls to assess omitted-variable bias. The `oster` option also uses the Masten and Poirier (2022) extensions implemented by `regsensitivity`, including the distinction between explaining away a coefficient and changing its sign. References and method labels follow the installed `help regsensitivity` documentation.
+
+> In plain language: both methods ask how much omitted influence the current conclusion can withstand. They measure that influence differently, so their thresholds cannot be ranked directly across methods.
+
+`compare(w1 w2)` selects `w1 w2` jointly as the benchmark. If both `compare()` and `nocompare()` are omitted, all controls listed after `x` are comparison controls by default. Absorbed fixed effects are always outside that group in `regsenshdfe`. The main examples explicitly include `compare(w1 w2)`. The exceptions demonstrate the equivalent `nocompare()` syntax and the native command's default in section 8.3.
+
+- `rxbar` bounds DMP selection on `x` from unobservables relative to the joint comparison group, using the method's standardized coefficient norms. `rxbar(0.3)` allows relative strength up to 0.3.
+- `rybar` is the corresponding relative-strength limit in the outcome equation for `y`. The default `rybar=+inf` imposes no finite limit in that dimension.
+- `cbar` restricts the correlation between unobservables and the comparison controls. The default `cbar=1` allows the full feasible correlation range. It is not a relative-strength multiplier.
+- `delta` is Oster's proportional-selection parameter, comparing selection on unobservables with selection on observables. Its observable benchmark is determined by `compare()`, but its definition differs from DMP's `rxbar`. `delta=1` means equal proportional selection in Oster's framework.
+- `r2long` specifies the hypothetical R-squared after including the omitted variables. Only with `relative` is its value a multiplier of medium-model R-squared. `r2long(1.3, relative)` means 1.3 times that R-squared, while `r2long(0.95)` directly specifies 0.95.
+
+> In plain language: first choose the measuring stick with `compare()`. `rxbar=0.3` lets omitted selection in the `x` equation reach up to 30% of that benchmark. `rybar` applies the analogous limit in the `y` equation. Correlation, Oster proportional selection and hypothetical explanatory power are separate assumptions.
 
 ## Installation
 
@@ -28,8 +46,7 @@ Download this repository, change to its root directory in Stata, and install:
 net install regsenshdfe, from(".") replace
 ```
 
-After publication to `codefoxs/regsenshdfe` on branch `main`, the intended GitHub
-installation command is:
+Install directly from the GitHub `main` branch:
 
 ```stata
 net install regsenshdfe, from("https://raw.githubusercontent.com/codefoxs/regsenshdfe/main/") replace
@@ -37,10 +54,10 @@ net install regsenshdfe, from("https://raw.githubusercontent.com/codefoxs/regsen
 
 ## Syntax and example data
 
-The estimation syntax is `regsenshdfe bounds depvar indepvar controls, absorb(absvars)`
-or `regsenshdfe breakdown depvar indepvar controls, absorb(absvars)`, with optional
+The estimation syntax is `regsenshdfe bounds depvar indepvar controls, absorb(absvars) compare(controls)`
+or `regsenshdfe breakdown depvar indepvar controls, absorb(absvars) compare(controls)`, with optional
 `if` and `in` restrictions. `bounds` computes coefficient identified sets at
-specified sensitivity parameters; `breakdown` computes thresholds for a specified
+specified sensitivity parameters. `breakdown` computes thresholds for a specified
 hypothesis.
 
 The examples use a simulated panel of 60 firms over 10 years, with 600 observations.
@@ -55,7 +72,7 @@ recast double y x w1 w2
 
 The script replaces the data in memory. The baseline model includes firm and year
 fixed effects and gives an estimated coefficient on `x` of 0.5621. The `text` blocks are copied directly from the [original Stata output](test/readme_output.txt),
-preserving command echoes, headers, numeric formatting, missing values and repeated rows. Complete examples are
+preserving command echoes, headers, numeric formatting, missing values and repeated rows. Prose and command arguments use leading zeros. Numbers printed by the upstream command itself, such as `.375`, retain their original format to keep the transcript verbatim. Complete examples are
 provided in [test/examples.do](test/examples.do).
 
 ## 1. DMP coefficient bounds
@@ -63,7 +80,7 @@ provided in [test/examples.do](test/examples.do).
 Compute coefficient bounds under specified limits on omitted-variable selection.
 
 ```stata
-regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
+regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 ```
 
 `rxbar` measures omitted-variable selection on `x` relative to the comparison
@@ -72,7 +89,7 @@ This example retains the defaults `rybar=+inf` and `cbar=1`.
 
 <!-- stata-output:dmp_bounds -->
 ```text
-. regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
+. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -105,12 +122,14 @@ positive-sign breakdown point is approximately 0.3198, displayed by the upstream
 command as 32%. This percentage denotes relative selection strength and has no
 probability interpretation. The reported intervals are identification regions.
 
+> In plain language: With `compare(w1 w2)` as the joint benchmark, allowing omitted selection on `x` up to 30% of that strength still leaves every possible coefficient positive, between 0.0411 and 1.0830, under the stated assumptions.
+
 ## 2. DMP breakdown points and frontiers
 
 Compute sign-robustness thresholds under alternative correlation restrictions.
 
 ```stata
-regsenshdfe breakdown y x w1 w2, absorb(firm year) cbar(0(.2)1) plot
+regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) cbar(0(0.2)1) plot
 ```
 
 `cbar` restricts the correlation between the omitted variable and the comparison
@@ -118,7 +137,7 @@ controls. The default hypothesis preserves the baseline sign: positive here.
 
 <!-- stata-output:dmp_breakdown -->
 ```text
-. regsenshdfe breakdown y x w1 w2, absorb(firm year) cbar(0(.2)1) plot
+. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) cbar(0(0.2)1) plot
 
 Regression Sensitivity Analysis, Breakdown Frontier
 
@@ -149,15 +168,17 @@ The breakdown point is approximately 0.337 at `cbar=0` and decreases to about
 below 1. Under this comparison group and these parameter settings, the positive
 sign is not robust to omitted-variable selection reaching the reference strength.
 
-The option `beta(.2, lb)` specifies the hypothesis beta > 0.2:
+> In plain language: The positive conclusion can fail before omitted selection reaches the same strength as the comparison group. Allowing correlation with observed controls gives a boundary near 32% of that strength.
+
+The option `beta(0.2, lb)` specifies the hypothesis beta > 0.2:
 
 ```stata
-regsenshdfe breakdown y x w1 w2, absorb(firm year) beta(.2, lb) cbar(1) table
+regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) beta(0.2, lb) cbar(1) table
 ```
 
 <!-- stata-output:dmp_beta -->
 ```text
-. regsenshdfe breakdown y x w1 w2, absorb(firm year) beta(.2, lb) cbar(1) table
+. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) beta(0.2, lb) cbar(1) table
 
 Regression Sensitivity Analysis, Breakdown Frontier
 
@@ -181,13 +202,15 @@ Hypothesis       : Beta > .2                   Var(X_Residual)    =       0.955
 The resulting threshold is 21.7%, below the threshold for beta > 0. A stricter
 coefficient lower bound permits less omitted-variable selection.
 
+> In plain language: Keeping the coefficient above 0.2 is harder than keeping it above zero. The stronger claim reaches its robustness boundary at about 21.7% of the comparison-group selection strength.
+
 ## 3. Oster identified sets under equality restrictions
 
 Fix the proportional-selection parameter delta at specified values and compute
 the corresponding coefficient identified sets.
 
 ```stata
-regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table
+regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) oster delta(0 0.5 1, eq) r2long(1.3, relative) table
 ```
 
 `delta(..., eq)` fixes delta at each listed value. `r2long(1.3, relative)` sets the
@@ -197,7 +220,7 @@ provides the explicit-dummy comparison.
 
 <!-- stata-output:oster_eq -->
 ```text
-. regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, eq) r2long(1.3, relative) table
+. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) oster delta(0 0.5 1, eq) r2long(1.3, relative) table
 ndeltapoints = 3, ngrid = 200
 
 Regression Sensitivity Analysis, Bounds
@@ -230,12 +253,14 @@ should be reported as the complete set, rather than as a selected root or the
 interval between the roots. A dot in the original output denotes the absence of
 an additional solution in that column.
 
+> In plain language: at delta 0.5 the only admissible coefficient is about 0.3747 under these assumptions. At delta 1 the two admissible values are 0.1015 and 1.5556. Report both, not just one root or every number between the roots. A dot in the output means there is no additional solution in that column.
+
 ## 4. Oster coefficient bounds under inequality restrictions
 
 Bound the absolute value of delta and compute coefficient lower and upper bounds.
 
 ```stata
-regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, bound) r2long(.95) table
+regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) oster delta(0 0.5 1, bound) r2long(0.95) table
 ```
 
 `bound` allows delta to vary with absolute value up to each supplied limit.
@@ -243,7 +268,7 @@ This example sets long-model R-squared to 0.95.
 
 <!-- stata-output:oster_bound -->
 ```text
-. regsenshdfe bounds y x w1 w2, absorb(firm year) oster delta(0 .5 1, bound) r2long(.95) table
+. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) oster delta(0 0.5 1, bound) r2long(0.95) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -285,18 +310,20 @@ This example uses a long-model R-squared of 0.95, unlike section 3. Comparisons
 of equality and inequality restrictions require the same R-squared and other
 parameter settings.
 
+> In plain language: With hypothetical long-model R-squared set to 0.95 and absolute delta up to 0.5, negative, zero and positive coefficients are all possible. With a limit of 1, there are no finite bounds. Section 3 uses a different R-squared, so differences cannot be attributed solely to `eq` versus `bound`.
+
 ## 5. Oster explain-away threshold
 
 The option `beta(0, eq)` specifies beta != 0 and computes the proportional-selection
 threshold at which that hypothesis fails.
 
 ```stata
-regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(0, eq) table
+regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(1.3, relative) beta(0, eq) table
 ```
 
 <!-- stata-output:oster_zero -->
 ```text
-. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(0, eq) table
+. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(1.3, relative) beta(0, eq) table
 
 Regression Sensitivity Analysis, Breakdown Frontier
 
@@ -321,18 +348,20 @@ Under this R-squared specification, the explain-away threshold is approximately
 1.106. It describes the selection required for a zero coefficient and does not
 substitute for a separate assessment of sign robustness.
 
+> In plain language: Under this R-squared assumption and Oster’s definition, the explain-away threshold is about 1.106 times the observable selection benchmark. That alone does not establish that the positive direction is robust. The next section checks the sign.
+
 ## 6. Oster sign breakdown point
 
 The option `beta(sign)` specifies preservation of the baseline coefficient sign.
 The baseline coefficient is positive in this example, so the hypothesis is beta > 0.
 
 ```stata
-regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(sign) table
+regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(1.3, relative) beta(sign) table
 ```
 
 <!-- stata-output:oster_sign -->
 ```text
-. regsenshdfe breakdown y x w1 w2, absorb(firm year) oster r2long(1.3, relative) beta(sign) table
+. regsenshdfe breakdown y x w1 w2, absorb(firm year) compare(w1 w2) oster r2long(1.3, relative) beta(sign) table
 
 Regression Sensitivity Analysis, Breakdown Frontier
 
@@ -355,12 +384,14 @@ Other Params     : R-squared(long) = .375
 
 On the same sample and R-squared specification, the explain-away threshold is
 1.1058 and the sign threshold is 1.0000. The sign threshold is a robustness
-boundary; it need not imply an attained negative coefficient at the boundary
+boundary. It need not imply an attained negative coefficient at the boundary
 itself. An explain-away threshold above 1 is therefore insufficient to establish
 sign robustness for delta near 1.
 
 DMP's rxbar and Oster's delta have different definitions. Their magnitudes do
 not provide a cross-method ranking of robustness.
+
+> In plain language: The previous section asks when the coefficient can equal zero. This section asks when its positive direction can no longer be guaranteed. The sign boundary is `delta=1`, earlier than the explain-away value of 1.1058. A boundary of 1 does not require a negative coefficient at exactly 1.
 
 ## 7. Comparison-control specification
 
@@ -369,15 +400,15 @@ specifies controls excluded from that calibration. Both calls below include `w0`
 in the model and use `w1 w2` as the comparison group:
 
 ```stata
-regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 .1 .2) table
-regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 .1 .2) table
+regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2) table
+regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 0.1 0.2) table
 ```
 
 Both commands produce:
 
 <!-- stata-output:compare -->
 ```text
-. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 .1 .2) table
+. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -405,7 +436,7 @@ Other Params     : rybar = +inf, cbar = 1
 
 <!-- stata-output:nocompare -->
 ```text
-. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 .1 .2) table
+. regsenshdfe bounds y x w1 w2 w0, absorb(firm year) nocompare(w0) rxbar(0 0.1 0.2) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -435,6 +466,8 @@ Other Params     : rybar = +inf, cbar = 1
 control role. Including `w0` changes the baseline coefficient from approximately
 0.5621 to 0.5172. Fixed effects are always treated as noncomparison controls by
 `regsenshdfe`.
+
+> In plain language: `w0` still controls for confounding, but it is not part of the measuring stick for omitted selection. In this example `compare(w1 w2)` and `nocompare(w0)` choose the same benchmark and give the same results. These options are mutually exclusive, so do not put them in the same call.
 
 ## 8. R-squared definitions and explicit fixed-effect comparison
 
@@ -587,16 +620,18 @@ The coefficient and overall R-squared agree across estimators. Overall R-squared
 is 0.65915834. Within R-squared is 0.28872647 and measures the fraction of variation
 explained after partialling out the fixed effects.
 
+> In plain language: Overall R-squared, 0.6592, includes the variation explained by firm and year effects. Within R-squared, 0.2887, first removes those effects and measures how much remaining variation `x w1 w2` explain. Equal coefficients do not require these two R-squared measures to be equal.
+
 ### 8.2 Fixed effects excluded from the comparison group
 
 ```stata
-regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 .1 .2 .3) table
-regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
+regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
+regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 ```
 
 <!-- stata-output:native_excluded -->
 ```text
-. regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 .1 .2 .3) table
+. regsensitivity bounds y x w1 w2 i.firm i.year, compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -625,7 +660,7 @@ Other Params     : rybar = +inf, cbar = 1
 
 <!-- stata-output:dmp_bounds -->
 ```text
-. regsenshdfe bounds y x w1 w2, absorb(firm year) rxbar(0 .1 .2 .3) table
+. regsenshdfe bounds y x w1 w2, absorb(firm year) compare(w1 w2) rxbar(0 0.1 0.2 0.3) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -658,17 +693,19 @@ residualized R-squared of 0.28872647 and produce the same breakdown point.
 
 The full DMP table and the Oster table under section 3's specification passed an
 absolute `1e-7` tolerance check. The maximum absolute difference was zero in this
-example; comparisons on other data are assessed using the numerical tolerance.
+example. Comparisons on other data are assessed using the numerical tolerance.
+
+> In plain language: The native command with `i.firm i.year` and explicit `compare(w1 w2)` agrees with the absorbed-FE wrapper. Using 0.2887 does not omit fixed effects. It means controlling for them first and analyzing the remaining variation.
 
 ### 8.3 Fixed effects included in the comparison group
 
 ```stata
-regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 .1 .2 .3) table
+regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 0.1 0.2 0.3) table
 ```
 
 <!-- stata-output:native_included -->
 ```text
-. regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 .1 .2 .3) table
+. regsensitivity bounds y x w1 w2 i.firm i.year, rxbar(0 0.1 0.2 0.3) table
 
 Regression Sensitivity Analysis, Bounds
 
@@ -698,8 +735,10 @@ Other Params     : rybar = +inf, cbar = 1
 Omitting `compare()` from the native call includes all controls, including the
 fixed-effect indicators, in the comparison group. R2(medium) then equals overall
 R-squared and the breakdown point changes accordingly. `regsenshdfe` implements
-the specification excluding fixed effects from the comparison group; its Oster
+the specification excluding fixed effects from the comparison group. Its Oster
 `r2long()` parameter must use the corresponding residualized scale.
+
+> In plain language: Without `compare()`, the native command also uses firm and year indicators as the measuring stick. That changes the question. Its roughly 19.6% threshold is therefore not evidence that the wrapper’s roughly 32% threshold is incorrect.
 
 ## Plotting and stored results
 
@@ -712,18 +751,20 @@ matrix summary = e(sumstats)
 ```
 
 The table is `e(idset_table)` after `bounds` and `e(breakfront_table)` after
-`breakdown`. `e(breakdown)` is supplied only for supported `bounds` specifications;
-it is not a universal return value.
+`breakdown`. `e(breakdown)` is supplied only for supported `bounds` specifications.
+It is not a universal return value.
 
 See [test/examples.do](test/examples.do) for interacted FE, sample restrictions,
 parameter grids and stored estimates. [test/bootstrap.do](test/bootstrap.do)
 illustrates a firm-cluster bootstrap. Run `help regsenshdfe` for the full options
 and stored-results reference.
 
+> In plain language: Run the sensitivity analysis before plotting. To use the numerical results elsewhere, read the corresponding `e()` matrix. The table name differs between `bounds` and `breakdown`.
+
 ## Reproducing the output
 
 Run `do test/readme_output.do` from the repository root to reproduce the displayed
-Stata output. The script sets `linesize 120`; the README does not reformat the
+Stata output. The script sets `linesize 120`. The README does not reformat the
 output. The recorded source is [test/readme_output.txt](test/readme_output.txt).
 
 After updating that file, run `python test/sync_readme_output.py` to synchronize
@@ -737,7 +778,7 @@ Run `do test/run_all.do` from the repository root for the numerical tests,
 R-squared comparison and examples. Tests replace the active data. Environment
 and detailed checks are recorded in [test/VALIDATION.md](test/VALIDATION.md).
 
-- This is point-identification analysis; it does not automatically provide
+- This is point-identification analysis. It does not automatically provide
   robust/clustered standard errors or confidence intervals. The bootstrap's 20
   replications illustrate the workflow, not a recommended inference procedure.
 - No weights, `vce()`, `cluster()`, or factor/time-series operators in the analysis
@@ -750,4 +791,4 @@ and detailed checks are recorded in [test/VALIDATION.md](test/VALIDATION.md).
 
 This is an independent wrapper, not an official extension by the dependency
 authors. Consult `regsensitivity` for DMP/Oster formulas and assumptions. The
-wrapper is MIT-licensed; dependencies retain their own licenses.
+wrapper is MIT-licensed. Dependencies retain their own licenses.
